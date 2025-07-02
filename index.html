@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIS Director Assessment Practice</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;background:#f4f4f4;color:#333}
+.container{max-width:800px;margin:0 auto;padding:20px}
+.question{background:#fff;margin-bottom:20px;padding:20px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,0.1)}
+textarea{width:100%;min-height:100px}
+button{margin:5px;padding:8px 12px;border:none;border-radius:4px;background:#007BFF;color:#fff;cursor:pointer}
+button:disabled{background:#999;cursor:not-allowed}
+.sample{background:#eef;border-left:4px solid #007BFF;padding:10px;margin-top:10px}
+.feedback{background:#efe;border-left:4px solid #28a745;padding:10px;margin-top:10px}
+.hidden{display:none}
+.timer{font-size:1.5em;margin-bottom:20px}
+.controls{margin-bottom:20px}
+@media (max-width:600px){.container{padding:10px}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>MIS Director Assessment Practice</h1>
+<div class="timer" id="timer">90:00</div>
+<div class="controls">
+<button id="startBtn">Start</button>
+<button id="pauseBtn" disabled>Pause</button>
+<button id="resetBtn">Reset Timer</button>
+<button id="startOverBtn">Start Over</button>
+</div>
+<div id="questions"></div>
+<div id="overall" class="hidden"></div>
+</div>
+<script>
+const TOTAL_TIME=90*60; // seconds
+let remaining=TOTAL_TIME;
+let timerInterval=null;
+const timerEl=document.getElementById('timer');
+const startBtn=document.getElementById('startBtn');
+const pauseBtn=document.getElementById('pauseBtn');
+const resetBtn=document.getElementById('resetBtn');
+const startOverBtn=document.getElementById('startOverBtn');
+
+function updateTimer(){
+ const m=Math.floor(remaining/60).toString().padStart(2,'0');
+ const s=(remaining%60).toString().padStart(2,'0');
+ timerEl.textContent=`${m}:${s}`;
+ if(remaining<=0) stopTimer();
+}
+function startTimer(){
+ if(timerInterval) return;
+ timerInterval=setInterval(()=>{remaining--;updateTimer();},1000);
+ startBtn.disabled=true;pauseBtn.disabled=false;
+}
+function stopTimer(){
+ clearInterval(timerInterval);timerInterval=null;
+ startBtn.disabled=false;pauseBtn.disabled=true;
+}
+function resetTimer(){
+ stopTimer();remaining=TOTAL_TIME;updateTimer();
+}
+startBtn.onclick=startTimer;
+pauseBtn.onclick=stopTimer;
+resetBtn.onclick=resetTimer;
+startOverBtn.onclick=()=>{resetTimer();initQuestions();};
+
+const questionsData=[
+ {text:"Explain the role of MIS in strategic planning.",keywords:["align","goals","resources","information"]},
+ {text:"Describe a challenge in implementing an ERP system and how to mitigate it.",keywords:["training","change management","cost","stakeholders"]},
+ {text:"How would you ensure data security across an organization?",keywords:["policies","encryption","audit","training"]},
+ {text:"What KPIs would you track for evaluating IT service performance?",keywords:["uptime","tickets","response","cost"]}
+];
+let currentQuestions=[];
+
+function pickQuestion(){
+ return questionsData[Math.floor(Math.random()*questionsData.length)];
+}
+function scoreAnswer(answer,keywords){
+ if(!answer) return 0;
+ let hits=0;
+ keywords.forEach(k=>{if(answer.toLowerCase().includes(k)) hits++;});
+ return Math.round((hits/keywords.length)*10);
+}
+function initQuestions(){
+ document.getElementById('questions').innerHTML='';
+ document.getElementById('overall').classList.add('hidden');
+ currentQuestions=[];
+ for(let i=0;i<3;i++) addQuestion(i);
+}
+function addQuestion(idx){
+ const q=pickQuestion();
+ currentQuestions[idx]=q;
+ const qDiv=document.createElement('div');
+ qDiv.className='question';
+ qDiv.innerHTML=`<h3>Question ${idx+1}</h3><p class="qtext">${q.text}</p>
+ <textarea id="answer${idx}"></textarea><br>
+ <button id="submit${idx}">Submit</button>
+ <button id="regen${idx}">New Question</button>
+ <button id="reset${idx}">Reset</button>
+ <button id="toggle${idx}">Show Answer</button>
+ <div id="sample${idx}" class="sample hidden"></div>
+ <div id="feedback${idx}" class="feedback hidden"></div>`;
+ document.getElementById('questions').appendChild(qDiv);
+ document.getElementById(`submit${idx}`).onclick=()=>submitAnswer(idx);
+ document.getElementById(`regen${idx}`).onclick=()=>regenQuestion(idx);
+ document.getElementById(`reset${idx}`).onclick=()=>resetQuestion(idx);
+ document.getElementById(`toggle${idx}`).onclick=()=>toggleSample(idx);
+}
+function regenQuestion(idx){
+ const container=document.getElementById('questions').children[idx];
+ currentQuestions[idx]=pickQuestion();
+ container.querySelector('.qtext').textContent=currentQuestions[idx].text;
+ resetQuestion(idx);
+}
+function resetQuestion(idx){
+ document.getElementById(`answer${idx}`).value='';
+ document.getElementById(`feedback${idx}`).classList.add('hidden');
+ document.getElementById(`sample${idx}`).classList.add('hidden');
+ document.getElementById(`toggle${idx}`).textContent='Show Answer';
+}
+function toggleSample(idx){
+ const sampleEl=document.getElementById(`sample${idx}`);
+ if(sampleEl.classList.contains('hidden')){
+ const q=currentQuestions[idx];
+ // placeholder for AI call
+ sampleEl.textContent=`Sample Answer: ${q.keywords.join(', ')}.`;
+ sampleEl.classList.remove('hidden');
+ document.getElementById(`toggle${idx}`).textContent='Hide Answer';
+ }else{
+ sampleEl.classList.add('hidden');
+ document.getElementById(`toggle${idx}`).textContent='Show Answer';
+ }
+}
+function submitAnswer(idx){
+ const ans=document.getElementById(`answer${idx}`).value;
+ const score=scoreAnswer(ans,currentQuestions[idx].keywords);
+ const fb=document.getElementById(`feedback${idx}`);
+ fb.innerHTML=`Score: ${score}/10`;
+ const missing=currentQuestions[idx].keywords.filter(k=>!ans.toLowerCase().includes(k));
+ if(missing.length) fb.innerHTML+=`<br>Consider mentioning: ${missing.join(', ')}`;
+ fb.classList.remove('hidden');
+ computeOverall();
+}
+function computeOverall(){
+ let total=0,count=0;
+ currentQuestions.forEach((q,idx)=>{
+ const fb=document.getElementById(`feedback${idx}`);
+ if(!fb.classList.contains('hidden')){
+ const txt=fb.textContent.match(/Score: (\d+)/);
+ if(txt){total+=parseInt(txt[1]);count++;}
+ }
+ });
+ if(count===currentQuestions.length){
+ const overall=document.getElementById('overall');
+ overall.innerHTML=`<h2>Overall Score: ${Math.round(total/count)}/10</h2>`;
+ overall.classList.remove('hidden');
+ }
+}
+initQuestions();
+</script>
+</body>
+</html>
